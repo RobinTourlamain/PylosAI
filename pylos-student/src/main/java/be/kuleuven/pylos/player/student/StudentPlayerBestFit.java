@@ -20,6 +20,7 @@ public class StudentPlayerBestFit extends PylosPlayer{
         List<Action> actions = generateAllActions(game, board);
         Random rand = new Random();
         Action next = actions.get(rand.nextInt(actions.size()));
+
         next.execute();
     }
 
@@ -74,6 +75,24 @@ public class StudentPlayerBestFit extends PylosPlayer{
 
         //RANDOM
         game.pass();
+    }
+
+    public int berekenScore(PylosBoard board){
+        // toekenning gewicht voor aantal reserves
+        int prmReserve = 10;
+        // toekenning gewicht voor aantal keer 3 ballen naast elkaar liggen
+        int prmDrie = 5;
+
+        // berekening score voor aantal reserves
+        int score =prmReserve * (board.getReservesSize(this.PLAYER_COLOR) - board.getReservesSize(this.OTHER));
+        // berekening score voor aantal vierkanten met 3 ballen van hetzalfde kleur
+        PylosSquare[] squares = board.getAllSquares();
+        for (PylosSquare square : squares) {
+            if(square.getInSquare(this)==3) score += prmDrie;
+            if(square.getInSquare(this.OTHER)==3) score -= prmDrie;
+        }
+
+        return score;
     }
 }
 
