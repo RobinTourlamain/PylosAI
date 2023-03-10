@@ -17,10 +17,9 @@ public class StudentPlayerBestFit extends PylosPlayer{
     public void doMove(PylosGameIF game, PylosBoard board) {
         init(game.getState(), board);
 
-        List<Action> actions = generateAllActions(game, board);
+        List<Action> actions = generateAllActions(game, board, this);
         Random rand = new Random();
         Action next = actions.get(rand.nextInt(actions.size()));
-
         next.execute();
     }
 
@@ -28,9 +27,9 @@ public class StudentPlayerBestFit extends PylosPlayer{
         simulator  = new PylosGameSimulator(state, this.PLAYER_COLOR, board);
     }
 
-    public List<Action> generateAllActions(PylosGameIF game, PylosBoard board){
-        PylosSphere myReserveSphere = board.getReserve(this);
-        PylosSphere[] mySpheres = board.getSpheres(this);
+    public List<Action> generateAllActions(PylosGameIF game, PylosBoard board, PylosPlayer player){
+        PylosSphere myReserveSphere = board.getReserve(player);
+        PylosSphere[] mySpheres = board.getSpheres(player);
         PylosLocation[] locations = board.getLocations();
         List<Action> actions = new ArrayList<>();
 
