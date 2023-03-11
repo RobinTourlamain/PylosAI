@@ -11,16 +11,64 @@ import static be.kuleuven.pylos.player.student.StudentPlayerBestFit.simulator;
 
 public class StudentPlayerBestFit extends PylosPlayer{
     public static PylosGameSimulator simulator;
-    public int MAXDEPTH = 4;
+    public int MAXDEPTH = 2;
 
     @Override
     public void doMove(PylosGameIF game, PylosBoard board) {
         init(game.getState(), board);
 
         List<Action> actions = generateAllActions(game, board, this);
-        Random rand = new Random();
-        Action next = actions.get(rand.nextInt(actions.size()));
+//        Random rand = new Random();
+//        Action next = actions.get(rand.nextInt(actions.size()));
+        int bestScore = -9999999;
+        int alpha = -9999999;
+        int beta = 9999999;
+        int diepte = 7;
+        Action next = null;
+        for (Action action : actions){
+            action.simulate();
+            // TODO: een methode toevoegen die ballen removet & dus een aantal nieuwe mogelijke acties simuleert
+            int score = miniPlayer(game, board, alpha, beta, diepte);
+            if (score>bestScore){
+                next = action;
+                bestScore = score;
+            }
+            action.undo();
+        }
         next.execute();
+    }
+
+    public int maxiPlayer(PylosGameIF game, PylosBoard board, int alpha, int beta, int diepte){
+        int maxi = berekenScore(board);
+        List<Action> actions = generateAllActions(game, board, this);
+        if (diepte<1){
+            diepte-=1;
+            for (Action action :actions) {
+                action.simulate();
+                int score = miniPlayer(game, board, alpha, beta, diepte);
+                if (score >= beta) return score;
+                maxi = Math.max(maxi, score);
+                alpha = Math.max(alpha, maxi);
+                action.undo();
+            }
+        }
+        return maxi;
+    }
+    public int miniPlayer(PylosGameIF game, PylosBoard board, int alpha, int beta, int diepte){
+        int mini = berekenScore(board);
+        List<Action> actions = generateAllActions(game, board, this.OTHER);
+        if (diepte<1){
+            diepte-=1;
+            for (Action action :actions) {
+                action.simulate();
+                int score = maxiPlayer(game, board, alpha, beta, diepte);
+                if (score <= alpha) return score;
+                mini = Math.min(mini, score);
+                action.undo();
+                beta = Math.min(beta, mini);
+            }
+        }
+        return mini;
     }
 
     public void init(PylosGameState state, PylosBoard board){
@@ -73,7 +121,13 @@ public class StudentPlayerBestFit extends PylosPlayer{
         init(game.getState(), board);
 
         //RANDOM
-        game.pass();
+        List<PylosSphere> removable = new ArrayList<>();
+        for(PylosSphere sphere: board.getSpheres(this)){
+            if(sphere.canRemove()){
+                removable.add(sphere);
+            }
+        }
+        game.removeSphere(removable.get(0));
     }
 
     public int berekenScore(PylosBoard board){
@@ -118,7 +172,8 @@ class Action{
             case UPGRADE:
                 game.moveSphere(sphere,nextlocation);
                 break;
-            case REMOVE:
+            case REMOVE_FIRST:
+            case REMOVE_SECOND:
                 game.removeSphere(sphere);
                 break;
             case PASS:
@@ -133,7 +188,8 @@ class Action{
             case UPGRADE:
                 simulator.moveSphere(sphere,nextlocation);
                 break;
-            case REMOVE:
+            case REMOVE_FIRST:
+            case REMOVE_SECOND:
                 simulator.removeSphere(sphere);
                 break;
             case PASS:
@@ -145,12 +201,19 @@ class Action{
     void undo(){
         switch(type){
             case ADD:
-                simulator.removeSphere(sphere);
+                simulator.undoAddSphere(sphere,simulator.getState(),sphere.PLAYER_COLOR);
                 break;
-            case REMOVE:
+            case REMOVE_FIRST:
+                simulator.undoRemoveFirstSphere(sphere,prevlocation,simulator.getState(),sphere.PLAYER_COLOR);
+                break;
+            case REMOVE_SECOND:
+                simulator.undoRemoveSecondSphere(sphere,prevlocation,simulator.getState(),sphere.PLAYER_COLOR);
+                break;
             case UPGRADE:
-                simulator.moveSphere(sphere, prevlocation);
+                simulator.undoMoveSphere(sphere, prevlocation,simulator.getState(),sphere.PLAYER_COLOR);
                 break;
+            case PASS:
+                simulator.undoPass(simulator.getState(),sphere.PLAYER_COLOR);
         }
     }
 }
@@ -158,6 +221,7 @@ class Action{
 enum Type{
     ADD,
     UPGRADE,
-    REMOVE,
+    REMOVE_FIRST,
+    REMOVE_SECOND,
     PASS,
 }
