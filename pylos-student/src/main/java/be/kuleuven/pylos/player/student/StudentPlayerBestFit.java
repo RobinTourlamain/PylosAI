@@ -23,31 +23,53 @@ public class StudentPlayerBestFit extends PylosPlayer{
         int bestScore = -9999999;
         int alpha = -9999999;
         int beta = 9999999;
-        int diepte = 7;
+        int diepte = 2;
+        int score = 0;
         Action next = null;
         for (Action action : actions){
             action.simulate();
             // TODO: een methode toevoegen die ballen removet & dus een aantal nieuwe mogelijke acties simuleert
-            int score = miniPlayer(game, board, alpha, beta, diepte);
+
+            if(simulator.getColor() != this.PLAYER_COLOR){
+                score = miniPlayer(game, board, alpha, beta, diepte);
+            }
+            else{
+                score = maxiPlayer(game, board, alpha, beta, diepte);
+            }
+
             if (score>bestScore){
                 next = action;
                 bestScore = score;
             }
             action.undo();
         }
+        assert next != null;
         next.execute();
     }
 
     public int maxiPlayer(PylosGameIF game, PylosBoard board, int alpha, int beta, int diepte){
         int maxi = berekenScore(board);
+        if(simulator.getState() == PylosGameState.COMPLETED){
+            return maxi;
+        }
+
         List<Action> actions = generateAllActions(game, board, this);
-        if (diepte<1){
+        if (diepte>1){
             diepte-=1;
             for (Action action :actions) {
                 action.simulate();
-                int score = miniPlayer(game, board, alpha, beta, diepte);
-                if (score >= beta) return score;
-                maxi = Math.max(maxi, score);
+
+                //na deze simulate niet meer aan maxiplayer
+                if(simulator.getColor() != this.PLAYER_COLOR){
+                    int score = miniPlayer(game, board, alpha, beta, diepte);
+                    if (score >= beta) return score;
+                    maxi = Math.max(maxi, score);
+                }
+                //na deze simulate nog eens maxiplayer
+                else{
+                    maxi = maxiPlayer(game, board, alpha, beta, diepte);
+                }
+
                 alpha = Math.max(alpha, maxi);
                 action.undo();
             }
@@ -56,14 +78,26 @@ public class StudentPlayerBestFit extends PylosPlayer{
     }
     public int miniPlayer(PylosGameIF game, PylosBoard board, int alpha, int beta, int diepte){
         int mini = berekenScore(board);
+        if(simulator.getState() == PylosGameState.COMPLETED){
+            return mini;
+        }
+
         List<Action> actions = generateAllActions(game, board, this.OTHER);
-        if (diepte<1){
+        if (diepte>1){
             diepte-=1;
             for (Action action :actions) {
                 action.simulate();
-                int score = maxiPlayer(game, board, alpha, beta, diepte);
-                if (score <= alpha) return score;
-                mini = Math.min(mini, score);
+
+                //na deze simulate niet meer aan miniplayer
+                if(simulator.getColor() == this.PLAYER_COLOR){
+                    int score = maxiPlayer(game, board, alpha, beta, diepte);
+                    if (score <= alpha) return score;
+                    mini = Math.min(mini, score);
+                }
+                //na deze simulate nog eens aan miniplayer
+                else{
+                    mini = miniPlayer(game, board, alpha, beta, diepte);
+                }
                 action.undo();
                 beta = Math.min(beta, mini);
             }
@@ -81,22 +115,41 @@ public class StudentPlayerBestFit extends PylosPlayer{
         PylosLocation[] locations = board.getLocations();
         List<Action> actions = new ArrayList<>();
 
-        //alle acties met upgraden
-        for(PylosSphere sphere : mySpheres){
-            if(!sphere.isReserve() && sphere.canMove()){
-                for(PylosLocation location : locations){
-                    if(sphere.canMoveTo(location)){
-                        actions.add(new Action(Type.UPGRADE, sphere, board, sphere.getLocation(), location, game));
+        //bepaal welke acties van toepassing zijn in de simulatie
+        switch(simulator.getState()){
+            case MOVE:
+                //alle acties met upgraden
+                for(PylosSphere sphere : mySpheres){
+                    if(!sphere.isReserve() && sphere.canMove()){
+                        for(PylosLocation location : locations){
+                            if(sphere.canMoveTo(location)){
+                                actions.add(new Action(Type.UPGRADE, sphere, board, sphere.getLocation(), location, game));
+                            }
+                        }
                     }
                 }
-            }
-        }
 
-        //alle acties met reserve spheres
-        for(PylosLocation location : locations){
-            if(myReserveSphere.canMoveTo(location)){
-                actions.add(new Action(Type.ADD, myReserveSphere, board, null, location, game));
-            }
+                //alle acties met reserve spheres
+                for(PylosLocation location : locations){
+                    if(myReserveSphere.canMoveTo(location)){
+                        actions.add(new Action(Type.ADD, myReserveSphere, board, null, location, game));
+                    }
+                }
+                break;
+            case REMOVE_FIRST:
+                for(PylosSphere sphere: board.getSpheres(player)){
+                    if(sphere.canRemove()){
+                        actions.add(new Action(Type.REMOVE_FIRST, sphere, board, sphere.getLocation(), null, game));
+                    }
+                }
+                break;
+            case REMOVE_SECOND:
+                for(PylosSphere sphere: board.getSpheres(player)){
+                    if(sphere.canRemove()){
+                        actions.add(new Action(Type.REMOVE_SECOND, sphere, board, sphere.getLocation(), null, game));
+                    }
+                }
+                break;
         }
 
         return actions;
@@ -156,6 +209,8 @@ class Action{
     public PylosLocation prevlocation;
     public PylosLocation nextlocation;
     public PylosGameIF game;
+    public PylosGameState prevState = simulator.getState();
+    public PylosPlayerColor prevcolor = simulator.getColor();
 
     Action(Type type, PylosSphere sphere, PylosBoard board, PylosLocation prev, PylosLocation next, PylosGameIF game){
         this.type = type;
@@ -201,19 +256,19 @@ class Action{
     void undo(){
         switch(type){
             case ADD:
-                simulator.undoAddSphere(sphere,simulator.getState(),sphere.PLAYER_COLOR);
+                simulator.undoAddSphere(sphere,prevState,prevcolor);
                 break;
             case REMOVE_FIRST:
-                simulator.undoRemoveFirstSphere(sphere,prevlocation,simulator.getState(),sphere.PLAYER_COLOR);
+                simulator.undoRemoveFirstSphere(sphere,prevlocation,prevState,prevcolor);
                 break;
             case REMOVE_SECOND:
-                simulator.undoRemoveSecondSphere(sphere,prevlocation,simulator.getState(),sphere.PLAYER_COLOR);
+                simulator.undoRemoveSecondSphere(sphere,prevlocation,prevState,prevcolor);
                 break;
             case UPGRADE:
-                simulator.undoMoveSphere(sphere, prevlocation,simulator.getState(),sphere.PLAYER_COLOR);
+                simulator.undoMoveSphere(sphere, prevlocation,prevState,prevcolor);
                 break;
             case PASS:
-                simulator.undoPass(simulator.getState(),sphere.PLAYER_COLOR);
+                simulator.undoPass(prevState,prevcolor);
         }
     }
 }
