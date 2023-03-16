@@ -12,11 +12,11 @@ import static be.kuleuven.pylos.player.student.StudentPlayerBestFit.simulator;
 public class StudentPlayerBestFit extends PylosPlayer{
     public static PylosGameSimulator simulator;
     public int MAXDEPTH = 2;
+    public int cool = 0;
 
     @Override
     public void doMove(PylosGameIF game, PylosBoard board) {
         init(game.getState(), board);
-
         List<Action> actions = generateAllActions(game, board, this);
 //        Random rand = new Random();
 //        Action next = actions.get(rand.nextInt(actions.size()));
@@ -27,6 +27,8 @@ public class StudentPlayerBestFit extends PylosPlayer{
         int score = 0;
         Action next = null;
         for (Action action : actions){
+            cool++;
+            System.out.println(cool);
             action.simulate();
             // TODO: een methode toevoegen die ballen removet & dus een aantal nieuwe mogelijke acties simuleert
 
@@ -52,28 +54,30 @@ public class StudentPlayerBestFit extends PylosPlayer{
         if(simulator.getState() == PylosGameState.COMPLETED){
             return maxi;
         }
+        if (0 < board.getReservesSize(this)){
+            List<Action> actions = generateAllActions(game, board, this);
+            if (diepte>1){
+                diepte-=1;
+                for (Action action :actions) {
+                    action.simulate();
 
-        List<Action> actions = generateAllActions(game, board, this);
-        if (diepte>1){
-            diepte-=1;
-            for (Action action :actions) {
-                action.simulate();
+                    //na deze simulate niet meer aan maxiplayer
+                    if(simulator.getColor() != this.PLAYER_COLOR){
+                        int score = miniPlayer(game, board, alpha, beta, diepte);
+                        if (score >= beta) return score;
+                        maxi = Math.max(maxi, score);
+                    }
+                    //na deze simulate nog eens maxiplayer
+                    else{
+                        maxi = maxiPlayer(game, board, alpha, beta, diepte);
+                    }
 
-                //na deze simulate niet meer aan maxiplayer
-                if(simulator.getColor() != this.PLAYER_COLOR){
-                    int score = miniPlayer(game, board, alpha, beta, diepte);
-                    if (score >= beta) return score;
-                    maxi = Math.max(maxi, score);
+                    alpha = Math.max(alpha, maxi);
+                    action.undo();
                 }
-                //na deze simulate nog eens maxiplayer
-                else{
-                    maxi = maxiPlayer(game, board, alpha, beta, diepte);
-                }
-
-                alpha = Math.max(alpha, maxi);
-                action.undo();
             }
         }
+
         return maxi;
     }
     public int miniPlayer(PylosGameIF game, PylosBoard board, int alpha, int beta, int diepte){
@@ -81,27 +85,29 @@ public class StudentPlayerBestFit extends PylosPlayer{
         if(simulator.getState() == PylosGameState.COMPLETED){
             return mini;
         }
+        if (0 < board.getReservesSize(this.OTHER)){
+            List<Action> actions = generateAllActions(game, board, this.OTHER);
+            if (diepte>1){
+                diepte-=1;
+                for (Action action :actions) {
+                    action.simulate();
 
-        List<Action> actions = generateAllActions(game, board, this.OTHER);
-        if (diepte>1){
-            diepte-=1;
-            for (Action action :actions) {
-                action.simulate();
-
-                //na deze simulate niet meer aan miniplayer
-                if(simulator.getColor() == this.PLAYER_COLOR){
-                    int score = maxiPlayer(game, board, alpha, beta, diepte);
-                    if (score <= alpha) return score;
-                    mini = Math.min(mini, score);
+                    //na deze simulate niet meer aan miniplayer
+                    if(simulator.getColor() == this.PLAYER_COLOR){
+                        int score = maxiPlayer(game, board, alpha, beta, diepte);
+                        if (score <= alpha) return score;
+                        mini = Math.min(mini, score);
+                    }
+                    //na deze simulate nog eens aan miniplayer
+                    else{
+                        mini = miniPlayer(game, board, alpha, beta, diepte);
+                    }
+                    action.undo();
+                    beta = Math.min(beta, mini);
                 }
-                //na deze simulate nog eens aan miniplayer
-                else{
-                    mini = miniPlayer(game, board, alpha, beta, diepte);
-                }
-                action.undo();
-                beta = Math.min(beta, mini);
             }
         }
+
         return mini;
     }
 
@@ -122,7 +128,7 @@ public class StudentPlayerBestFit extends PylosPlayer{
                 for(PylosSphere sphere : mySpheres){
                     if(!sphere.isReserve() && sphere.canMove()){
                         for(PylosLocation location : locations){
-                            if(sphere.canMoveTo(location)){
+                            if(sphere.canMoveTo(location) && location.isUsable() && !location.hasAbove()){
                                 actions.add(new Action(Type.UPGRADE, sphere, board, sphere.getLocation(), location, game));
                             }
                         }
@@ -131,7 +137,7 @@ public class StudentPlayerBestFit extends PylosPlayer{
 
                 //alle acties met reserve spheres
                 for(PylosLocation location : locations){
-                    if(myReserveSphere.canMoveTo(location)){
+                    if(myReserveSphere.canMoveTo(location) && location.isUsable()){
                         actions.add(new Action(Type.ADD, myReserveSphere, board, null, location, game));
                     }
                 }
@@ -180,7 +186,10 @@ public class StudentPlayerBestFit extends PylosPlayer{
                 removable.add(sphere);
             }
         }
-        game.removeSphere(removable.get(0));
+        if (removable.size()>0){
+            game.removeSphere(removable.get(0));
+        }
+        else game.pass();
     }
 
     public int berekenScore(PylosBoard board){
