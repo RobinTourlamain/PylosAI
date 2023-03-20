@@ -11,7 +11,7 @@ import static be.kuleuven.pylos.player.student.StudentPlayerBestFit.simulator;
 
 public class StudentPlayerBestFit extends PylosPlayer{
     public static PylosGameSimulator simulator;
-    public int MAXDEPTH = 2;
+    public int MAXDEPTH = 4;
     public int cool = 0;
 
     @Override
@@ -23,7 +23,7 @@ public class StudentPlayerBestFit extends PylosPlayer{
         int bestScore = -9999999;
         int alpha = -9999999;
         int beta = 9999999;
-        int diepte = 2;
+        int diepte = 3;
         int score = 0;
         Action next = null;
         for (Action action : actions){
@@ -51,6 +51,7 @@ public class StudentPlayerBestFit extends PylosPlayer{
 
     public int maxiPlayer(PylosGameIF game, PylosBoard board, int alpha, int beta, int diepte){
         int maxi = berekenScore(board);
+        //check of game gewonnen is
         if(simulator.getState() == PylosGameState.COMPLETED){
             return maxi;
         }
@@ -82,6 +83,7 @@ public class StudentPlayerBestFit extends PylosPlayer{
     }
     public int miniPlayer(PylosGameIF game, PylosBoard board, int alpha, int beta, int diepte){
         int mini = berekenScore(board);
+        //check of game gewonnen is
         if(simulator.getState() == PylosGameState.COMPLETED){
             return mini;
         }
@@ -128,8 +130,8 @@ public class StudentPlayerBestFit extends PylosPlayer{
                 for(PylosSphere sphere : mySpheres){
                     if(!sphere.isReserve() && sphere.canMove()){
                         for(PylosLocation location : locations){
-                            if(sphere.canMoveTo(location) && location.isUsable() && !location.hasAbove()){
-                                actions.add(new Action(Type.UPGRADE, sphere, board, sphere.getLocation(), location, game));
+                            if(sphere.canMoveTo(location)){
+                                actions.add(new Action(Type.UPGRADE, sphere, board, sphere.getLocation(), location, game, PylosGameState.MOVE, player.PLAYER_COLOR));
                             }
                         }
                     }
@@ -137,22 +139,22 @@ public class StudentPlayerBestFit extends PylosPlayer{
 
                 //alle acties met reserve spheres
                 for(PylosLocation location : locations){
-                    if(myReserveSphere.canMoveTo(location) && location.isUsable()){
-                        actions.add(new Action(Type.ADD, myReserveSphere, board, null, location, game));
+                    if(myReserveSphere.canMoveTo(location)){
+                        actions.add(new Action(Type.ADD, myReserveSphere, board, null, location, game, PylosGameState.MOVE, player.PLAYER_COLOR));
                     }
                 }
                 break;
             case REMOVE_FIRST:
                 for(PylosSphere sphere: board.getSpheres(player)){
                     if(sphere.canRemove()){
-                        actions.add(new Action(Type.REMOVE_FIRST, sphere, board, sphere.getLocation(), null, game));
+                        actions.add(new Action(Type.REMOVE_FIRST, sphere, board, sphere.getLocation(), null, game, PylosGameState.REMOVE_FIRST, player.PLAYER_COLOR));
                     }
                 }
                 break;
             case REMOVE_SECOND:
                 for(PylosSphere sphere: board.getSpheres(player)){
                     if(sphere.canRemove()){
-                        actions.add(new Action(Type.REMOVE_SECOND, sphere, board, sphere.getLocation(), null, game));
+                        actions.add(new Action(Type.REMOVE_SECOND, sphere, board, sphere.getLocation(), null, game, PylosGameState.REMOVE_SECOND, player.PLAYER_COLOR));
                     }
                 }
                 break;
@@ -218,16 +220,18 @@ class Action{
     public PylosLocation prevlocation;
     public PylosLocation nextlocation;
     public PylosGameIF game;
-    public PylosGameState prevState = simulator.getState();
-    public PylosPlayerColor prevcolor = simulator.getColor();
+    public PylosGameState prevState;
+    public PylosPlayerColor prevcolor;
 
-    Action(Type type, PylosSphere sphere, PylosBoard board, PylosLocation prev, PylosLocation next, PylosGameIF game){
+    Action(Type type, PylosSphere sphere, PylosBoard board, PylosLocation prev, PylosLocation next, PylosGameIF game, PylosGameState prevstate, PylosPlayerColor prevcolor){
         this.type = type;
         this.sphere = sphere;
         this.board = board;
         this.prevlocation = prev;
         this.nextlocation = next;
         this.game = game;
+        this.prevState = prevstate;
+        this.prevcolor = prevcolor;
     }
 
     void execute(){
@@ -266,18 +270,24 @@ class Action{
         switch(type){
             case ADD:
                 simulator.undoAddSphere(sphere,prevState,prevcolor);
+                assert simulator.getState() == prevState && simulator.getColor() == prevcolor;
                 break;
             case REMOVE_FIRST:
                 simulator.undoRemoveFirstSphere(sphere,prevlocation,prevState,prevcolor);
+                assert simulator.getState() == prevState && simulator.getColor() == prevcolor;
                 break;
             case REMOVE_SECOND:
                 simulator.undoRemoveSecondSphere(sphere,prevlocation,prevState,prevcolor);
+                assert simulator.getState() == prevState && simulator.getColor() == prevcolor;
                 break;
             case UPGRADE:
                 simulator.undoMoveSphere(sphere, prevlocation,prevState,prevcolor);
+                assert simulator.getState() == prevState && simulator.getColor() == prevcolor;
                 break;
             case PASS:
                 simulator.undoPass(prevState,prevcolor);
+                assert simulator.getState() == prevState && simulator.getColor() == prevcolor;
+                break;
         }
     }
 }

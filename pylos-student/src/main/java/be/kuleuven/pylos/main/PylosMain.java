@@ -11,6 +11,7 @@ import be.kuleuven.pylos.player.codes.PylosPlayerMiniMax;
 import be.kuleuven.pylos.player.codes.PylosPlayerRandomFit;
 import be.kuleuven.pylos.player.student.StudentPlayerBestFit;
 import be.kuleuven.pylos.player.student.StudentPlayerRandomFit;
+import be.kuleuven.pylos.player.student.StudentPlayerTest;
 /*
 import org.jfree.chart.ChartFactory;
 import org.jfree.chart.ChartUtilities;
@@ -62,8 +63,8 @@ public class PylosMain {
 	}
 
 	public void startBattle() {
-		PylosPlayer playerLight = new StudentPlayerBestFit();
-		PylosPlayer playerDark = new PylosPlayerMiniMax(); // PylosPlayerMiniMax(1);
+		PylosPlayer playerLight = new StudentPlayerTest();
+		PylosPlayer playerDark = new PylosPlayerBestFit(); // PylosPlayerMiniMax(1);
 		Battle.play(playerLight, playerDark, 100);
 	}
 
