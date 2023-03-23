@@ -12,15 +12,28 @@ import be.kuleuven.pylos.player.codes.PylosPlayerRandomFit;
 import be.kuleuven.pylos.player.student.StudentPlayerBestFit;
 import be.kuleuven.pylos.player.student.StudentPlayerRandomFit;
 import be.kuleuven.pylos.player.student.StudentPlayerTest;
-/*
-import org.jfree.chart.ChartFactory;
-import org.jfree.chart.ChartUtilities;
-import org.jfree.chart.JFreeChart;
-import org.jfree.chart.plot.PlotOrientation;
-import org.jfree.data.xy.XYSeries;
-import org.jfree.data.xy.XYSeriesCollection;
-*/
-
+//import org.jfree.chart.ChartFactory;
+//import org.jfree.chart.ChartPanel;
+//import org.jfree.chart.ChartUtilities;
+//import org.jfree.chart.JFreeChart;
+//import org.jfree.chart.axis.AxisLocation;
+//import org.jfree.chart.axis.NumberAxis;
+//import org.jfree.chart.plot.PlotOrientation;
+//import org.jfree.chart.plot.XYPlot;
+//import org.jfree.chart.renderer.GrayPaintScale;
+//import org.jfree.chart.renderer.PaintScale;
+//import org.jfree.chart.renderer.xy.XYBlockRenderer;
+//import org.jfree.chart.title.PaintScaleLegend;
+//import org.jfree.data.DomainOrder;
+//import org.jfree.data.general.DatasetChangeListener;
+//import org.jfree.data.general.DatasetGroup;
+//import org.jfree.data.xy.*;
+//import org.jfree.ui.RectangleEdge;
+//import org.jfree.ui.RectangleInsets;
+//
+//
+//import javax.swing.*;
+//import java.awt.*;
 import java.io.File;
 import java.io.IOException;
 import java.util.Random;
@@ -62,40 +75,113 @@ public class PylosMain {
 		pylosGame.play();
 	}
 
-	public void startBattle() {
-		PylosPlayer playerLight = new StudentPlayerTest();
-		PylosPlayer playerDark = new PylosPlayerBestFit(); // PylosPlayerMiniMax(1);
-		Battle.play(playerLight, playerDark, 100);
+	/*public void startBattlesTesting(){
+		//final XYSeries data = new XYSeries( "testdata" );
+		DefaultXYZDataset dataset = new DefaultXYZDataset();
+		for (int i = 0; i < 11; i++) {
+			double[][] data = new double[3][11];
+			for (int j = 0; j < 11; j++) {
+				PylosPlayer playerLight = new StudentPlayerTest(i,j);
+				PylosPlayer playerDark = new PylosPlayerBestFit();
+				double win = 100* Battle.play(playerLight, playerDark, 100, false)[0];
+				System.out.println("("+i+","+j+") -> "+win);
+				data[0][j] = i;
+				data[1][j] = j;
+				data[2][j] = win;
+			}
+			dataset.addSeries("Series" + i, data);
+		}
+		*//*JFreeChart xylineChart = ChartFactory.createXYLineChart(
+				"TESTS",
+				"i",
+				"% keer gewonnen",
+				dataset,
+				PlotOrientation.VERTICAL,
+				true, true, false);*//*
+		//JFreeChart xylineChart = createChart(dataset);
+
+		int width = 640;   *//* Width of the image *//*
+		int height = 480;  *//* Height of the image *//*
+		File XYChart = new File( "XYLineChart.jpeg" );
+		//ChartUtilities.saveChartAsJPEG( XYChart, xylineChart, width, height);
+		JFrame f = new JFrame("cool hoor");
+		f.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+		ChartPanel chartPanel = new ChartPanel(createChart(dataset)) {
+			@Override
+			public Dimension getPreferredSize() {
+				return new Dimension(640, 480);
+			}
+		};
+		chartPanel.setMouseZoomable(true, false);
+		f.add(chartPanel);
+		f.pack();
+		f.setLocationRelativeTo(null);
+		f.setVisible(true);
+		System.out.println("Klaar maken grafieken.");
 	}
 
-//	public void startBattlesTesting(){
-//		final XYSeries data = new XYSeries( "testdata" );
-//		PylosPlayer playerLight = new StudentPlayerRandomFit();
-//		PylosPlayer playerDark = new PylosPlayerRandomFit();
-//		for (int i = 0; i < 10; i++) {
-//			double win = 100* Battle.play(playerLight, playerDark, 100, false)[0];
-//			data.add(i, win);
-//		}
-//		final XYSeriesCollection dataset = new XYSeriesCollection( );
-//		dataset.addSeries(data);
-//		JFreeChart xylineChart = ChartFactory.createXYLineChart(
-//				"TESTS",
-//				"i",
-//				"% keer gewonnen",
-//				dataset,
-//				PlotOrientation.VERTICAL,
-//				true, true, false);
-//
-//		int width = 640;   /* Width of the image */
-//		int height = 480;  /* Height of the image */
-//		File XYChart = new File( "XYLineChart.jpeg" );
-//		try {
-//			ChartUtilities.saveChartAsJPEG( XYChart, xylineChart, width, height);
-//		} catch (IOException e) {
-//			throw new RuntimeException(e);
-//		}
-//		System.out.println("Klaar maken grafieken.");
-//	}
+	private static JFreeChart createChart(XYDataset dataset) {
+		NumberAxis xAxis = new NumberAxis("x Axis");
+		NumberAxis yAxis = new NumberAxis("y Axis");
+		XYPlot plot = new XYPlot(dataset, xAxis, yAxis, null);
+		XYBlockRenderer r = new XYBlockRenderer();
+		SpectrumPaintScale ps = new SpectrumPaintScale(0,100);
+		r.setPaintScale(ps);
+		r.setBlockHeight(1.0f);
+		r.setBlockWidth(1.0f);
+		plot.setRenderer(r);
+		JFreeChart chart = new JFreeChart("Title",
+				JFreeChart.DEFAULT_TITLE_FONT, plot, false);
+		NumberAxis scaleAxis = new NumberAxis("Scale");
+		scaleAxis.setAxisLinePaint(Color.white);
+		scaleAxis.setTickMarkPaint(Color.white);
+		PaintScaleLegend legend = new PaintScaleLegend(ps, scaleAxis);
+		legend.setSubdivisionCount(128);
+		legend.setAxisLocation(AxisLocation.TOP_OR_RIGHT);
+		legend.setPadding(new RectangleInsets(10, 10, 10, 10));
+		legend.setStripWidth(20);
+		legend.setPosition(RectangleEdge.RIGHT);
+		legend.setBackgroundPaint(Color.WHITE);
+		chart.addSubtitle(legend);
+		chart.setBackgroundPaint(Color.white);
+		return chart;
+	}
+
+	private static class SpectrumPaintScale implements PaintScale {
+
+		private static final float H1 = 0f;
+		private static final float H2 = 1f;
+		private final double lowerBound;
+		private final double upperBound;
+
+		public SpectrumPaintScale(double lowerBound, double upperBound) {
+			this.lowerBound = lowerBound;
+			this.upperBound = upperBound;
+		}
+
+		@Override
+		public double getLowerBound() {
+			return lowerBound;
+		}
+
+		@Override
+		public double getUpperBound() {
+			return upperBound;
+		}
+
+		@Override
+		public Paint getPaint(double value) {
+			float scaledValue = (float) (value / (getUpperBound() - getLowerBound()));
+			float scaledH = H1 + scaledValue * (H2 - H1);
+			return Color.getHSBColor(scaledH, 1f, 1f);
+		}
+	}*/
+
+	public void startBattle() {
+		PylosPlayer playerLight = new StudentPlayerTest(4,9);
+		PylosPlayer playerDark = new  PylosPlayerMiniMax(4); // PylosPlayerMiniMax(1); PylosPlayerBestFit()
+		Battle.play(playerLight, playerDark, 100);
+	}
 
 	public static void main(String[] args) {
 

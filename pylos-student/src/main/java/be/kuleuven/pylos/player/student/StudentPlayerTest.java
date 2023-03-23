@@ -10,6 +10,12 @@ import static be.kuleuven.pylos.player.student.StudentPlayerTest.simulator;
 public class StudentPlayerTest extends PylosPlayer{
     public static PylosGameSimulator simulator;
     public static int MAX_DEPTH = 4;
+    public static int PRM_DRIE,PRM_REMOVE;
+
+    public StudentPlayerTest(Integer drie, Integer remove){
+        PRM_DRIE = drie;
+        PRM_REMOVE = remove;
+    }
 
     @Override
     public void doMove(PylosGameIF game, PylosBoard board) {
@@ -48,9 +54,9 @@ public class StudentPlayerTest extends PylosPlayer{
 
         if (simulator.getState() == PylosGameState.COMPLETED) {
             if(simulator.getWinner() == this.PLAYER_COLOR){
-                return score - depth;
-            }else {
                 return score + depth;
+            }else {
+                return score - depth;
             }
         }
 
@@ -66,7 +72,6 @@ public class StudentPlayerTest extends PylosPlayer{
     public int maxplayer(PylosGameIF game, PylosBoard board, int depth, int alpha, int beta){
         int bestscore = berekenScore(board);
         List<Actiont> actions = generateAllActions(game, board, this);
-
         if(depth <= MAX_DEPTH){
             depth++;
             for(Actiont action : actions){
@@ -192,7 +197,7 @@ public class StudentPlayerTest extends PylosPlayer{
         int bestScore = -Integer.MAX_VALUE;
         int alpha = -Integer.MAX_VALUE;
         int beta = Integer.MAX_VALUE;
-        int depth = 0;
+        int depth = 10;
         int score = 0;
 
         Actiont next = null;
@@ -220,7 +225,7 @@ public class StudentPlayerTest extends PylosPlayer{
         int bestScore = -Integer.MAX_VALUE;
         int alpha = -Integer.MAX_VALUE;
         int beta = Integer.MAX_VALUE;
-        int depth = 0;
+        int depth = 10;
         int score = 0;
 
         Actiont next = null;
@@ -244,15 +249,34 @@ public class StudentPlayerTest extends PylosPlayer{
         // toekenning gewicht voor aantal reserves
         int prmReserve = 10;
         // toekenning gewicht voor aantal keer 3 ballen naast elkaar liggen
-        int prmDrie = 3;
+        int prmDrie = PRM_DRIE;
+        // toekenning gewicht voor aantal verwijderbare ballen
+        int prmRemove = PRM_REMOVE;
 
         // berekening score voor aantal reserves
         int score =prmReserve * (board.getReservesSize(this) - board.getReservesSize(this.OTHER));
         // berekening score voor aantal vierkanten met 3 ballen van hetzalfde kleur
         PylosSquare[] squares = board.getAllSquares();
+        int i = 1;
         for (PylosSquare square : squares) {
-            if(square.getInSquare(this)==3) score += prmDrie;
-            if(square.getInSquare(this.OTHER)==3) score -= prmDrie;
+            i++;
+            // aantal ballen in het centrum belonen
+            if (i==10)score+=(square.getInSquare(this)-square.getInSquare(this.OTHER))*prmDrie;
+            // score voor 3 ballen bij elkaar met open plaats
+            if(square.getInSquare(this)==3 && square.getInSquare(this.OTHER)!=1) score += prmDrie*2;
+            // score voor 3 ballen van de ander met 1 van ons die hem blok legt
+            else if(square.getInSquare(this.OTHER)==3 && square.getInSquare(this)==1) score += prmDrie;
+            // straf voor tegenstander die vierkant zou kunnen vormen
+            else if(square.getInSquare(this.OTHER)==3 && square.getInSquare(this)!=1) score -= prmDrie*2;
+        }
+        // berekening score voor aantal ballen die van het bord kunnen gehaald worden
+        PylosSphere[] spheresPlayer = board.getSpheres(this);
+        PylosSphere[] spheresOther = board.getSpheres(this.OTHER);
+        for (PylosSphere sp : spheresPlayer){
+            if (sp.canRemove()) score += prmRemove;
+        }
+        for (PylosSphere sp : spheresOther){
+            if (!sp.canRemove()) score += prmRemove;
         }
 
         return score;
