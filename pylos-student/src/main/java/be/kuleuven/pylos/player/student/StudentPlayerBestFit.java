@@ -131,12 +131,12 @@ public class StudentPlayerBestFit extends PylosPlayer{
     }
 
     public PylosPlayerColor randomPlay(PylosGameIF game, PylosBoard board, int depth){
-        //early predicton
-//        if(board.getReservesSize(this) - board.getReservesSize(this.OTHER) >= 3){
+//        //early predicton
+//        if(board.getReservesSize(this) - board.getReservesSize(this.OTHER) >= 5){
 //            return this.PLAYER_COLOR;
 //        }
-        //early stopping
-//        if(depth > 30){
+//        //early stopping
+//        if(depth > 40){
 //            return evaluate(game, board);
 //        }
 //        depth++;
@@ -208,7 +208,11 @@ public class StudentPlayerBestFit extends PylosPlayer{
         Node current = node;
         while(current.transition != null){
             current.state.visitcount++;
-            if(result == this.PLAYER_COLOR && current.transition.prevcolor == this.PLAYER_COLOR) current.state.winrate += 1; //10
+            if(result == this.PLAYER_COLOR && current.transition.prevcolor == this.PLAYER_COLOR){
+                current.state.winrate += 1; //10
+            }else if(result == this.OTHER.PLAYER_COLOR && current.transition.prevcolor == this.OTHER.PLAYER_COLOR){
+                current.state.winrate += 1;
+            }
             current.transition.undo();
             current = current.parent;
         }
