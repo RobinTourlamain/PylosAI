@@ -275,10 +275,16 @@ public class StudentPlayerTest extends PylosPlayer{
         PylosSphere[] spheresPlayer = board.getSpheres(this);
         PylosSphere[] spheresOther = board.getSpheres(this.OTHER);
         for (PylosSphere sp : spheresPlayer){
-            if (sp.canRemove()) score += prmRemove;
+            if (!sp.isReserve()){
+                if (sp.canRemove()) score += prmRemove;
+                score+=sp.getLocation().Z;
+            }
         }
         for (PylosSphere sp : spheresOther){
-            if (!sp.canRemove()) score -= prmRemove;
+            if (!sp.isReserve()){
+                if (sp.canRemove()) score -= prmRemove;
+                score-=sp.getLocation().Z;
+            }
         }
 
         return score;
