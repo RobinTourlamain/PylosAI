@@ -12,28 +12,28 @@ import be.kuleuven.pylos.player.codes.PylosPlayerRandomFit;
 import be.kuleuven.pylos.player.student.StudentPlayerBestFit;
 import be.kuleuven.pylos.player.student.StudentPlayerRandomFit;
 import be.kuleuven.pylos.player.student.StudentPlayerTest;
-//import org.jfree.chart.ChartFactory;
-//import org.jfree.chart.ChartPanel;
-//import org.jfree.chart.ChartUtilities;
-//import org.jfree.chart.JFreeChart;
-//import org.jfree.chart.axis.AxisLocation;
-//import org.jfree.chart.axis.NumberAxis;
-//import org.jfree.chart.plot.PlotOrientation;
-//import org.jfree.chart.plot.XYPlot;
-//import org.jfree.chart.renderer.GrayPaintScale;
-//import org.jfree.chart.renderer.PaintScale;
-//import org.jfree.chart.renderer.xy.XYBlockRenderer;
-//import org.jfree.chart.title.PaintScaleLegend;
-//import org.jfree.data.DomainOrder;
-//import org.jfree.data.general.DatasetChangeListener;
-//import org.jfree.data.general.DatasetGroup;
-//import org.jfree.data.xy.*;
-//import org.jfree.ui.RectangleEdge;
-//import org.jfree.ui.RectangleInsets;
-//
-//
-//import javax.swing.*;
-//import java.awt.*;
+/*import org.jfree.chart.ChartFactory;
+import org.jfree.chart.ChartPanel;
+import org.jfree.chart.ChartUtilities;
+import org.jfree.chart.JFreeChart;
+import org.jfree.chart.axis.AxisLocation;
+import org.jfree.chart.axis.NumberAxis;
+import org.jfree.chart.plot.PlotOrientation;
+import org.jfree.chart.plot.XYPlot;
+import org.jfree.chart.renderer.GrayPaintScale;
+import org.jfree.chart.renderer.PaintScale;
+import org.jfree.chart.renderer.xy.XYBlockRenderer;
+import org.jfree.chart.title.PaintScaleLegend;
+import org.jfree.data.DomainOrder;
+import org.jfree.data.general.DatasetChangeListener;
+import org.jfree.data.general.DatasetGroup;
+import org.jfree.data.xy.*;
+import org.jfree.ui.RectangleEdge;
+import org.jfree.ui.RectangleInsets;
+
+
+import javax.swing.*;
+import java.awt.*;*/
 import java.io.File;
 import java.io.IOException;
 import java.util.Random;
@@ -78,11 +78,12 @@ public class PylosMain {
 	/*public void startBattlesTesting(){
 		//final XYSeries data = new XYSeries( "testdata" );
 		DefaultXYZDataset dataset = new DefaultXYZDataset();
-		for (int i = 0; i < 11; i++) {
+		int diepte = 4;
+		PylosPlayer playerDark = new PylosPlayerMiniMax(diepte); //PylosPlayerBestFit();
+		for (int i = 0; i < 16; i++) {
 			double[][] data = new double[3][11];
 			for (int j = 0; j < 11; j++) {
 				PylosPlayer playerLight = new StudentPlayerTest(i,j);
-				PylosPlayer playerDark = new PylosPlayerBestFit();
 				double win = 100* Battle.play(playerLight, playerDark, 100, false)[0];
 				System.out.println("("+i+","+j+") -> "+win);
 				data[0][j] = i;
@@ -103,15 +104,19 @@ public class PylosMain {
 		int width = 640;   *//* Width of the image *//*
 		int height = 480;  *//* Height of the image *//*
 		File XYChart = new File( "XYLineChart.jpeg" );
-		//ChartUtilities.saveChartAsJPEG( XYChart, xylineChart, width, height);
-		JFrame f = new JFrame("cool hoor");
+		JFrame f = new JFrame("Grafiek");
 		f.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-		ChartPanel chartPanel = new ChartPanel(createChart(dataset)) {
+		ChartPanel chartPanel = new ChartPanel(createChart(dataset,playerDark.getClass().getSimpleName(),diepte)) {
 			@Override
 			public Dimension getPreferredSize() {
 				return new Dimension(640, 480);
 			}
 		};
+		try {
+			ChartUtilities.saveChartAsJPEG( XYChart, chartPanel.getChart(), width, height);
+		} catch (IOException e) {
+			throw new RuntimeException(e);
+		}
 		chartPanel.setMouseZoomable(true, false);
 		f.add(chartPanel);
 		f.pack();
@@ -120,9 +125,9 @@ public class PylosMain {
 		System.out.println("Klaar maken grafieken.");
 	}
 
-	private static JFreeChart createChart(XYDataset dataset) {
-		NumberAxis xAxis = new NumberAxis("x Axis");
-		NumberAxis yAxis = new NumberAxis("y Axis");
+	private static JFreeChart createChart(XYDataset dataset, String tegenstander, int diepte) {
+		NumberAxis xAxis = new NumberAxis("Waarde parameter die 3 ballen telt");
+		NumberAxis yAxis = new NumberAxis("Waarde parameter die removables telt");
 		XYPlot plot = new XYPlot(dataset, xAxis, yAxis, null);
 		XYBlockRenderer r = new XYBlockRenderer();
 		SpectrumPaintScale ps = new SpectrumPaintScale(0,100);
@@ -130,7 +135,8 @@ public class PylosMain {
 		r.setBlockHeight(1.0f);
 		r.setBlockWidth(1.0f);
 		plot.setRenderer(r);
-		JFreeChart chart = new JFreeChart("Title",
+		String titel = "Tests tegen "+tegenstander+"("+diepte+")";
+		JFreeChart chart = new JFreeChart(titel,
 				JFreeChart.DEFAULT_TITLE_FONT, plot, false);
 		NumberAxis scaleAxis = new NumberAxis("Scale");
 		scaleAxis.setAxisLinePaint(Color.white);
@@ -178,8 +184,8 @@ public class PylosMain {
 	}*/
 
 	public void startBattle() {
-		PylosPlayer playerLight = new StudentPlayerTest(4,9);
-		PylosPlayer playerDark = new  PylosPlayerMiniMax(4); // PylosPlayerMiniMax(1); PylosPlayerBestFit()
+		PylosPlayer playerLight = new StudentPlayerTest(10,2);
+		PylosPlayer playerDark = new  PylosPlayerMiniMax(1); // PylosPlayerMiniMax(1); PylosPlayerBestFit()
 		Battle.play(playerLight, playerDark, 100);
 	}
 
