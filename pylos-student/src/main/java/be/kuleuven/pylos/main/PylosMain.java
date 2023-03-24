@@ -178,9 +178,9 @@ public class PylosMain {
 	}*/
 
 	public void startBattle() {
-		PylosPlayer playerLight = new StudentPlayerTest(4,9);
-		PylosPlayer playerDark = new  PylosPlayerMiniMax(4); // PylosPlayerMiniMax(1); PylosPlayerBestFit()
-		Battle.play(playerLight, playerDark, 100);
+		PylosPlayer playerLight = new StudentPlayerBestFit();
+		PylosPlayer playerDark = new  StudentPlayerTest(4,9); // PylosPlayerMiniMax(1); PylosPlayerBestFit()
+		Battle.play(playerLight, playerDark, 10);
 	}
 
 	public static void main(String[] args) {

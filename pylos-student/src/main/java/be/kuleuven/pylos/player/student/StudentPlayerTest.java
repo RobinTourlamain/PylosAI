@@ -9,7 +9,7 @@ import static be.kuleuven.pylos.player.student.StudentPlayerTest.simulator;
 
 public class StudentPlayerTest extends PylosPlayer{
     public static PylosGameSimulator simulator;
-    public static int MAX_DEPTH = 4;
+    public static int MAX_DEPTH = 6;
     public static int PRM_DRIE,PRM_REMOVE;
 
     public StudentPlayerTest(Integer drie, Integer remove){
@@ -49,16 +49,16 @@ public class StudentPlayerTest extends PylosPlayer{
     }
 
     public int branch(PylosGameIF game, PylosBoard board, int depth, int alpha, int beta){
-        int score = berekenScore(board);
-        //if(simulator.getState() == PylosGameState.COMPLETED) return score;
+        int score;
+        if(simulator.getState() == PylosGameState.COMPLETED) return berekenScore(board);
 
-        if (simulator.getState() == PylosGameState.COMPLETED) {
-            if(simulator.getWinner() == this.PLAYER_COLOR){
-                return score + depth;
-            }else {
-                return score - depth;
-            }
-        }
+//        if (simulator.getState() == PylosGameState.COMPLETED) {
+//            if(simulator.getWinner() == this.PLAYER_COLOR){
+//                return berekenScore(board) + depth;
+//            }else {
+//                return berekenScore(board) - depth;
+//            }
+//        }
 
         if(simulator.getColor() == this.PLAYER_COLOR){
             score = maxplayer(game, board, depth, alpha, beta);
@@ -197,7 +197,7 @@ public class StudentPlayerTest extends PylosPlayer{
         int bestScore = -Integer.MAX_VALUE;
         int alpha = -Integer.MAX_VALUE;
         int beta = Integer.MAX_VALUE;
-        int depth = 10;
+        int depth = 0;
         int score = 0;
 
         Actiont next = null;
@@ -225,7 +225,7 @@ public class StudentPlayerTest extends PylosPlayer{
         int bestScore = -Integer.MAX_VALUE;
         int alpha = -Integer.MAX_VALUE;
         int beta = Integer.MAX_VALUE;
-        int depth = 10;
+        int depth = 0;
         int score = 0;
 
         Actiont next = null;

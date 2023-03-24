@@ -37,5 +37,12 @@ public class PlayerFactoryStudent extends PylosPlayerFactory {
 				return new StudentPlayerBestFit();
 			}
 		});
+
+		add(new PylosPlayerType("Student - Test") {
+			@Override
+			public PylosPlayer create() {
+				return new StudentPlayerTest(4,9);
+			}
+		});
 	}
 }

@@ -3,122 +3,151 @@ package be.kuleuven.pylos.player.student;
 import be.kuleuven.pylos.game.*;
 import be.kuleuven.pylos.player.PylosPlayer;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Random;
+import java.util.*;
 
 import static be.kuleuven.pylos.player.student.StudentPlayerBestFit.simulator;
 
 public class StudentPlayerBestFit extends PylosPlayer{
     public static PylosGameSimulator simulator;
-    public int MAXDEPTH = 4;
-    public int cool = 0;
 
     @Override
     public void doMove(PylosGameIF game, PylosBoard board) {
         init(game.getState(), board);
-        List<Action> actions = generateAllActions(game, board, this);
-//        Random rand = new Random();
-//        Action next = actions.get(rand.nextInt(actions.size()));
-        int bestScore = -9999999;
-        int alpha = -9999999;
-        int beta = 9999999;
-        int diepte = 3;
-        int score = 0;
-        Action next = null;
-        for (Action action : actions){
-            cool++;
-            System.out.println(cool);
-            action.simulate();
-            // TODO: een methode toevoegen die ballen removet & dus een aantal nieuwe mogelijke acties simuleert
 
-            if(simulator.getColor() != this.PLAYER_COLOR){
-                score = miniPlayer(game, board, alpha, beta, diepte);
-            }
-            else{
-                score = maxiPlayer(game, board, alpha, beta, diepte);
-            }
-
-            if (score>bestScore){
-                next = action;
-                bestScore = score;
-            }
-            action.undo();
-        }
-        assert next != null;
+        Action next = monteCarlo(game, board);
         next.execute();
     }
 
-    public int maxiPlayer(PylosGameIF game, PylosBoard board, int alpha, int beta, int diepte){
-        int maxi = berekenScore(board);
-        //check of game gewonnen is
-        if(simulator.getState() == PylosGameState.COMPLETED){
-            return maxi;
-        }
-        if (0 < board.getReservesSize(this)){
-            List<Action> actions = generateAllActions(game, board, this);
-            if (diepte>1){
-                diepte-=1;
-                for (Action action :actions) {
-                    action.simulate();
+    @Override
+    public void doRemove(PylosGameIF game, PylosBoard board) {
+        init(game.getState(), board);
 
-                    //na deze simulate niet meer aan maxiplayer
-                    if(simulator.getColor() != this.PLAYER_COLOR){
-                        int score = miniPlayer(game, board, alpha, beta, diepte);
-                        if (score >= beta) return score;
-                        maxi = Math.max(maxi, score);
-                    }
-                    //na deze simulate nog eens maxiplayer
-                    else{
-                        maxi = maxiPlayer(game, board, alpha, beta, diepte);
-                    }
-
-                    alpha = Math.max(alpha, maxi);
-                    action.undo();
-                }
-            }
-        }
-
-        return maxi;
+        Action next = monteCarlo(game, board);
+        next.execute();
     }
-    public int miniPlayer(PylosGameIF game, PylosBoard board, int alpha, int beta, int diepte){
-        int mini = berekenScore(board);
-        //check of game gewonnen is
-        if(simulator.getState() == PylosGameState.COMPLETED){
-            return mini;
-        }
-        if (0 < board.getReservesSize(this.OTHER)){
-            List<Action> actions = generateAllActions(game, board, this.OTHER);
-            if (diepte>1){
-                diepte-=1;
-                for (Action action :actions) {
-                    action.simulate();
 
-                    //na deze simulate niet meer aan miniplayer
-                    if(simulator.getColor() == this.PLAYER_COLOR){
-                        int score = maxiPlayer(game, board, alpha, beta, diepte);
-                        if (score <= alpha) return score;
-                        mini = Math.min(mini, score);
-                    }
-                    //na deze simulate nog eens aan miniplayer
-                    else{
-                        mini = miniPlayer(game, board, alpha, beta, diepte);
-                    }
-                    action.undo();
-                    beta = Math.min(beta, mini);
-                }
-            }
-        }
+    @Override
+    public void doRemoveOrPass(PylosGameIF game, PylosBoard board) {
+        init(game.getState(), board);
 
-        return mini;
+        Action next = monteCarlo(game, board);
+        next.execute();
     }
 
     public void init(PylosGameState state, PylosBoard board){
         simulator  = new PylosGameSimulator(state, this.PLAYER_COLOR, board);
     }
 
+    public Action monteCarlo(PylosGameIF game, PylosBoard board){
+        Node root = new Node();
+        List<Node> children = new ArrayList<>();
+        for(Action action : generateAllActions(game, board, this)){
+            Node newnode = new Node(new State(), root, action);
+            children.add(newnode);
+        }
+        root.children = children;
+
+        int maxtime = 100;
+        long endtime = maxtime + System.currentTimeMillis();
+
+        while(System.currentTimeMillis() < endtime){
+            Node promising = selectPromising(root);
+
+            if(simulator.getState() != PylosGameState.COMPLETED){
+                expandNode(promising, game, board);
+            }
+
+            Node toexplore = promising;
+            if(!promising.children.isEmpty()){
+                toexplore = promising.getRandomChild();
+                toexplore.transition.simulate();
+            }
+
+
+            PylosPlayerColor endresult = randomPlay(game, board);
+            backPropagation(toexplore, endresult);
+        }
+
+        Node winner = root.getBestChild();
+        return winner.transition;
+    }
+
+    public Node selectPromising(Node root){
+        Node node = root;
+        while(!node.children.isEmpty()){
+            node = findBestNode(node);
+            node.transition.simulate();
+        }
+        return node;
+    }
+
+    public Node findBestNode(Node node){
+        int parentvisits = node.state.visitcount;
+        return Collections.max(
+          node.children,
+          Comparator.comparing(
+                  c -> uctValue(parentvisits, c.state.winrate, c.state.visitcount)
+          )
+        );
+    }
+
+    public double uctValue(int parentvisits, double winrate, int nodevisits){
+        if(nodevisits == 0) return Integer.MAX_VALUE;
+        return ((double) winrate / (double) nodevisits) + 1.41 * Math.sqrt(Math.log(parentvisits) / (double) nodevisits);
+    }
+
+    public void expandNode(Node node, PylosGameIF game, PylosBoard board){
+        List<Action> actions;
+        if(simulator.getColor() == this.PLAYER_COLOR){
+            actions = generateAllActions(game, board, this);
+        }else{
+            actions = generateAllActions(game, board, this.OTHER);
+        }
+        List<Node> children = new ArrayList<>();
+        for(Action action : actions){
+            Node newnode = new Node(new State(), node, action);
+            children.add(newnode);
+        }
+        node.children = children;
+    }
+
+    public PylosPlayerColor randomPlay(PylosGameIF game, PylosBoard board){
+        PylosPlayer player;
+        if(simulator.getColor() == this.PLAYER_COLOR){
+            player = this;
+        }
+        else{
+            player = this.OTHER;
+        }
+
+        if(simulator.getState() != PylosGameState.COMPLETED && simulator.getState() != PylosGameState.DRAW) {
+            List<Action> actions = generateAllActions(game, board, player);
+            Random rand = new Random();
+            Action next = actions.get(rand.nextInt(actions.size()));
+            next.simulate();
+            PylosPlayerColor result =  randomPlay(game, board);
+            next.undo();
+            return result;
+        }else if(simulator.getState() == PylosGameState.COMPLETED){
+            return simulator.getWinner();
+        }else{
+            return this.OTHER.PLAYER_COLOR;
+        }
+    }
+
+    public void backPropagation(Node node, PylosPlayerColor result){
+        Node current = node;
+        while(current != null){
+            current.state.visitcount++;
+            if(result == this.PLAYER_COLOR) current.state.winrate += 10;
+            if(current.transition != null){
+                current.transition.undo();
+            }
+            current = current.parent;
+        }
+    }
+
     public List<Action> generateAllActions(PylosGameIF game, PylosBoard board, PylosPlayer player){
-        PylosSphere myReserveSphere = board.getReserve(player);
         PylosSphere[] mySpheres = board.getSpheres(player);
         PylosLocation[] locations = board.getLocations();
         List<Action> actions = new ArrayList<>();
@@ -138,6 +167,7 @@ public class StudentPlayerBestFit extends PylosPlayer{
                 }
 
                 //alle acties met reserve spheres
+                PylosSphere myReserveSphere = board.getReserve(player);
                 for(PylosLocation location : locations){
                     if(myReserveSphere.canMoveTo(location)){
                         actions.add(new Action(Type.ADD, myReserveSphere, board, null, location, game, PylosGameState.MOVE, player.PLAYER_COLOR));
@@ -157,60 +187,44 @@ public class StudentPlayerBestFit extends PylosPlayer{
                         actions.add(new Action(Type.REMOVE_SECOND, sphere, board, sphere.getLocation(), null, game, PylosGameState.REMOVE_SECOND, player.PLAYER_COLOR));
                     }
                 }
+                actions.add(new Action(Type.PASS, null, board, null, null, game, PylosGameState.REMOVE_SECOND, player.PLAYER_COLOR));
                 break;
         }
 
         return actions;
     }
+}
 
-    @Override
-    public void doRemove(PylosGameIF game, PylosBoard board) {
-        init(game.getState(), board);
 
-        //RANDOM
-        List<PylosSphere> removable = new ArrayList<>();
-        for(PylosSphere sphere: board.getSpheres(this)){
-            if(sphere.canRemove()){
-                removable.add(sphere);
-            }
-        }
-        game.removeSphere(removable.get(0));
+class Node{
+    State state = new State();
+    Node parent = null;
+    List<Node> children = new ArrayList<>();
+    Action transition;
+
+    public Node(){}
+    public Node(State state, Node parent, Action transition){
+        this.state = state;
+        this.parent = parent;
+        this.transition = transition;
     }
 
-    @Override
-    public void doRemoveOrPass(PylosGameIF game, PylosBoard board) {
-        init(game.getState(), board);
-
-        //RANDOM
-        List<PylosSphere> removable = new ArrayList<>();
-        for(PylosSphere sphere: board.getSpheres(this)){
-            if(sphere.canRemove()){
-                removable.add(sphere);
-            }
-        }
-        if (removable.size()>0){
-            game.removeSphere(removable.get(0));
-        }
-        else game.pass();
+    public Node getRandomChild(){
+        Random rand = new Random();
+        return children.get(rand.nextInt(children.size()));
     }
 
-    public int berekenScore(PylosBoard board){
-        // toekenning gewicht voor aantal reserves
-        int prmReserve = 10;
-        // toekenning gewicht voor aantal keer 3 ballen naast elkaar liggen
-        int prmDrie = 5;
-
-        // berekening score voor aantal reserves
-        int score =prmReserve * (board.getReservesSize(this.PLAYER_COLOR) - board.getReservesSize(this.OTHER));
-        // berekening score voor aantal vierkanten met 3 ballen van hetzalfde kleur
-        PylosSquare[] squares = board.getAllSquares();
-        for (PylosSquare square : squares) {
-            if(square.getInSquare(this)==3) score += prmDrie;
-            if(square.getInSquare(this.OTHER)==3) score -= prmDrie;
-        }
-
-        return score;
+    public Node getBestChild(){
+        return Collections.max(
+                children,
+                Comparator.comparing(c -> c.state.winrate)
+        );
     }
+}
+
+class State{
+    int visitcount = 0;
+    double winrate = 0;
 }
 
 class Action{
