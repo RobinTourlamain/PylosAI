@@ -44,5 +44,12 @@ public class PlayerFactoryStudent extends PylosPlayerFactory {
 				return new StudentPlayerTest(4,9);
 			}
 		});
+
+		add(new PylosPlayerType("Student - Cacheless") {
+			@Override
+			public PylosPlayer create() {
+				return new StudentPlayerBestFitWithoutCache();
+			}
+		});
 	}
 }
