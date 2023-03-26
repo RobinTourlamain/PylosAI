@@ -6,6 +6,7 @@ import java.util.*;
 
 import static be.kuleuven.pylos.player.student.StudentPlayerBestFit.simulator;
 
+//player die boom opslaat en hergebruikt
 public class StudentPlayerBestFit extends PylosPlayer{
     public static PylosGameSimulator simulator;
     public Node root = null;

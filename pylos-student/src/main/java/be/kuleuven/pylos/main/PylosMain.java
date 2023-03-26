@@ -185,10 +185,11 @@ public class PylosMain {
 		}
 	}*/
 
+	//PC ROBIN: exparameter 0.9 maxthinkingtime 50, exparameter 0.95 maxthinkingtime 40
 	public void startBattle() {
-		PylosPlayer playerLight = new StudentPlayerBestFitWithoutCache();// new StudentPlayerTest(10,2); new StudentPlayerNegaMax(10,2);
-		PylosPlayer playerDark = new StudentPlayerBestFit(); // PylosPlayerMiniMax(1); PylosPlayerBestFit()
-		Battle.play(playerLight, playerDark, 50);
+		PylosPlayer playerLight = new StudentPlayerBestFitWithoutCache(0.95);// new StudentPlayerTest(10,2); new StudentPlayerNegaMax(10,2);
+		PylosPlayer playerDark = new StudentPlayerBestFitWithoutCache(); // PylosPlayerMiniMax(1); PylosPlayerBestFit()
+		Battle.play(playerLight, playerDark, 100);
 	}
 
 	public static void main(String[] args) {

@@ -6,10 +6,18 @@ import be.kuleuven.pylos.player.PylosPlayer;
 import java.util.*;
 import static be.kuleuven.pylos.player.student.StudentPlayerBestFitWithoutCache.simulatorcacheless;
 
+//player zonder boom op te slaan
 public class StudentPlayerBestFitWithoutCache extends PylosPlayer{
     public static PylosGameSimulator simulatorcacheless;
-    final long MAX_TIME_PER_MOVE = 50;
+    public Random randomgenerator = new Random();
+    final long MAX_TIME_PER_MOVE = 40;
     public boolean isfirstmove = true;
+    public double exparam = 1.41;
+
+    public StudentPlayerBestFitWithoutCache(){}
+    public StudentPlayerBestFitWithoutCache(double explorationparameter){
+        exparam = explorationparameter;
+    }
 
     @Override
     public void doMove(PylosGameIF game, PylosBoard board) {
@@ -21,7 +29,7 @@ public class StudentPlayerBestFitWithoutCache extends PylosPlayer{
             for(int x = 1; x<=2; x++){
                 for(int y = 1; y<=2; y++){
                     if(board.getBoardLocation(x, y,0).isUsable()){
-                        next = new Actioncacheless(Type.ADD, board.getReserve(this), board, null, board.getBoardLocation(x, y,0), game, PylosGameState.MOVE, this.PLAYER_COLOR);
+                        next = new Actioncacheless(Type.ADD, board.getReserve(this), null, board.getBoardLocation(x, y,0), game, PylosGameState.MOVE, this.PLAYER_COLOR);
                     }
                 }
             }
@@ -54,6 +62,7 @@ public class StudentPlayerBestFitWithoutCache extends PylosPlayer{
     }
 
     public Actioncacheless monteCarlo(PylosGameIF game, PylosBoard board){
+        //root van boom instellen op huidige staat bord
         Nodecacheless root = new Nodecacheless();
         List<Nodecacheless> children = new ArrayList<>();
         for(Actioncacheless action : generateAllActions(game, board, this)){
@@ -62,24 +71,26 @@ public class StudentPlayerBestFitWithoutCache extends PylosPlayer{
         }
         root.children = children;
 
-        int iterations = 0;
         long endtime = MAX_TIME_PER_MOVE + System.currentTimeMillis();
-
         while(System.currentTimeMillis() < endtime){
+            //selecteer beste node in huidige tree
             Nodecacheless promising = selectPromising(root);
 
             if(simulatorcacheless.getState() != PylosGameState.COMPLETED){
+                //genereer kinderen van de promising node
                 expandNode(promising, game, board);
             }
 
             Nodecacheless toexplore = promising;
             if(!promising.children.isEmpty()){
+                //selecteer random kind van promising node
                 toexplore = promising.getRandomChild();
                 toexplore.transition.simulate();
             }
 
-
-            PylosPlayerColor endresult = randomPlay(game, board, 0);
+            //speel vanuit de huidige node random tot een eindresultaat is bereikt
+            PylosPlayerColor endresult = randomPlay(game, board);
+            //propageer resultaat terug door alle nodes tot en met root
             if(endresult == null){
                 backPropagationDraw(toexplore);
             }else if(endresult == this.PLAYER_COLOR){
@@ -88,9 +99,9 @@ public class StudentPlayerBestFitWithoutCache extends PylosPlayer{
                 backPropagationLoss(toexplore);
             }
 //            backPropagation(toexplore, endresult);
-            iterations++;
         }
 
+        //geef beste kind van root terug als move om te maken
         Nodecacheless winner = root.getBestChild();
         return winner.transition;
     }
@@ -153,7 +164,7 @@ public class StudentPlayerBestFitWithoutCache extends PylosPlayer{
 
     public double uctValue(int parentvisits, double winrate, int nodevisits){
         if(nodevisits == 0) return Integer.MAX_VALUE;
-        return ((double) winrate / (double) nodevisits) + 1.41 * Math.sqrt(Math.log(parentvisits) / (double) nodevisits);
+        return ((double) winrate / (double) nodevisits) + exparam * Math.sqrt(Math.log(parentvisits) / (double) nodevisits);
     }
 
     public void expandNode(Nodecacheless node, PylosGameIF game, PylosBoard board){
@@ -171,7 +182,7 @@ public class StudentPlayerBestFitWithoutCache extends PylosPlayer{
         node.children = children;
     }
 
-    public PylosPlayerColor randomPlay(PylosGameIF game, PylosBoard board, int depth){
+    public PylosPlayerColor randomPlay(PylosGameIF game, PylosBoard board){
 //        //early predicton
 //        if(board.getReservesSize(this) - board.getReservesSize(this.OTHER) >= 5){
 //            return this.PLAYER_COLOR;
@@ -180,7 +191,7 @@ public class StudentPlayerBestFitWithoutCache extends PylosPlayer{
 //        if(depth > 40){
 //            return evaluate(game, board);
 //        }
-//        depth++;
+        if(simulatorcacheless.getState() == PylosGameState.COMPLETED) return simulatorcacheless.getWinner();
 
         PylosPlayer player;
         if(simulatorcacheless.getColor() == this.PLAYER_COLOR){
@@ -190,75 +201,16 @@ public class StudentPlayerBestFitWithoutCache extends PylosPlayer{
             player = this.OTHER;
         }
 
-        if(simulatorcacheless.getState() != PylosGameState.COMPLETED && simulatorcacheless.getState() != PylosGameState.DRAW) {
+        if(simulatorcacheless.getState() != PylosGameState.DRAW) {
             List<Actioncacheless> actions = generateAllActions(game, board, player);
-            Random rand = new Random();
-            Actioncacheless next = actions.get(rand.nextInt(actions.size()));
+            Actioncacheless next = actions.get(randomgenerator.nextInt(actions.size()));
             next.simulate();
-            PylosPlayerColor result =  randomPlay(game, board, depth);
+            PylosPlayerColor result =  randomPlay(game, board);
             next.undo();
             return result;
-        }else if(simulatorcacheless.getState() == PylosGameState.COMPLETED){
-            return simulatorcacheless.getWinner();
         }else{
             return null;
         }
-    }
-
-    public PylosPlayerColor evaluate(PylosGameIF game, PylosBoard board){
-        int prmRemove = 2;
-        int prmDrie = 10;
-        int score = 10 * (board.getReservesSize(this) - board.getReservesSize(this.OTHER));
-        // berekening score voor aantal vierkanten met 3 ballen van hetzalfde kleur
-        PylosSquare[] squares = board.getAllSquares();
-        int i = 1;
-        for (PylosSquare square : squares) {
-            i++;
-            // aantal ballen in het centrum belonen
-            if (i==10)score+=(square.getInSquare(this)-square.getInSquare(this.OTHER))*prmRemove;
-            // score voor 3 ballen bij elkaar met open plaats
-            if(square.getInSquare(this)==3 && square.getInSquare(this.OTHER)!=1) score += prmDrie*2;
-            else if(square.getInSquare(this.OTHER)==3 && square.getInSquare(this)!=1) score -= prmDrie*2;
-                // score voor 3 ballen van de ander met 1 van ons die hem blok legt
-            else if(square.getInSquare(this.OTHER)==3 && square.getInSquare(this)==1) score += prmDrie;
-            else if(square.getInSquare(this)==3 && square.getInSquare(this.OTHER)==1) score -= prmDrie;
-            // straf voor tegenstander die vierkant zou kunnen vormen
-            //else if(square.getInSquare(this.OTHER)==3 && square.getInSquare(this)!=1) score -= prmDrie*2;
-        }
-        // berekening score voor aantal ballen die van het bord kunnen gehaald worden
-        PylosSphere[] spheresPlayer = board.getSpheres(this);
-        PylosSphere[] spheresOther = board.getSpheres(this.OTHER);
-        for (PylosSphere sp : spheresPlayer){
-            if (!sp.isReserve()){
-                if (sp.canRemove()) score += prmRemove;
-                score+=sp.getLocation().Z;
-            }
-        }
-        for (PylosSphere sp : spheresOther){
-            if (!sp.isReserve()){
-                if (sp.canRemove()) score -= prmRemove;
-                score-=sp.getLocation().Z;
-            }
-        }
-
-        if(score > 0) return this.PLAYER_COLOR;
-        return this.OTHER.PLAYER_COLOR;
-    }
-
-    public void backPropagation(Nodecacheless node, PylosPlayerColor result){
-        Nodecacheless current = node;
-        while(current.transition != null){
-            current.state.visitcount++;
-            if(result == this.PLAYER_COLOR && current.transition.prevcolor == this.PLAYER_COLOR){
-                current.state.winrate += 1; //10
-            }else if(result == this.OTHER.PLAYER_COLOR && current.transition.prevcolor == this.OTHER.PLAYER_COLOR){
-                current.state.winrate += 1;
-            }
-            current.transition.undo();
-            current = current.parent;
-        }
-        current.state.visitcount++;
-        if(result == this.PLAYER_COLOR) current.state.winrate += 1; //10
     }
 
     public List<Actioncacheless> generateAllActions(PylosGameIF game, PylosBoard board, PylosPlayer player){
@@ -274,7 +226,7 @@ public class StudentPlayerBestFitWithoutCache extends PylosPlayer{
                     if(!sphere.isReserve() && sphere.canMove()){
                         for(PylosLocation location : locations){
                             if(sphere.canMoveTo(location)){
-                                actions.add(new Actioncacheless(Type.UPGRADE, sphere, board, sphere.getLocation(), location, game, PylosGameState.MOVE, player.PLAYER_COLOR));
+                                actions.add(new Actioncacheless(Type.UPGRADE, sphere, sphere.getLocation(), location, game, PylosGameState.MOVE, player.PLAYER_COLOR));
                             }
                         }
                     }
@@ -284,24 +236,24 @@ public class StudentPlayerBestFitWithoutCache extends PylosPlayer{
                 PylosSphere myReserveSphere = board.getReserve(player);
                 for(PylosLocation location : locations){
                     if(myReserveSphere.canMoveTo(location)){
-                        actions.add(new Actioncacheless(Type.ADD, myReserveSphere, board, null, location, game, PylosGameState.MOVE, player.PLAYER_COLOR));
+                        actions.add(new Actioncacheless(Type.ADD, myReserveSphere, null, location, game, PylosGameState.MOVE, player.PLAYER_COLOR));
                     }
                 }
                 break;
             case REMOVE_FIRST:
                 for(PylosSphere sphere: board.getSpheres(player)){
                     if(sphere.canRemove()){
-                        actions.add(new Actioncacheless(Type.REMOVE_FIRST, sphere, board, sphere.getLocation(), null, game, PylosGameState.REMOVE_FIRST, player.PLAYER_COLOR));
+                        actions.add(new Actioncacheless(Type.REMOVE_FIRST, sphere, sphere.getLocation(), null, game, PylosGameState.REMOVE_FIRST, player.PLAYER_COLOR));
                     }
                 }
                 break;
             case REMOVE_SECOND:
                 for(PylosSphere sphere: board.getSpheres(player)){
                     if(sphere.canRemove()){
-                        actions.add(new Actioncacheless(Type.REMOVE_SECOND, sphere, board, sphere.getLocation(), null, game, PylosGameState.REMOVE_SECOND, player.PLAYER_COLOR));
+                        actions.add(new Actioncacheless(Type.REMOVE_SECOND, sphere, sphere.getLocation(), null, game, PylosGameState.REMOVE_SECOND, player.PLAYER_COLOR));
                     }
                 }
-                actions.add(new Actioncacheless(Type.PASS, null, board, null, null, game, PylosGameState.REMOVE_SECOND, player.PLAYER_COLOR));
+                actions.add(new Actioncacheless(Type.PASS, null, null, null, game, PylosGameState.REMOVE_SECOND, player.PLAYER_COLOR));
                 break;
         }
 
@@ -338,17 +290,15 @@ class Nodecacheless{
 class Actioncacheless{
     public Type type;
     public PylosSphere sphere;
-    public PylosBoard board;
     public PylosLocation prevlocation;
     public PylosLocation nextlocation;
     public PylosGameIF game;
     public PylosGameState prevState;
     public PylosPlayerColor prevcolor;
 
-    Actioncacheless(Type type, PylosSphere sphere, PylosBoard board, PylosLocation prev, PylosLocation next, PylosGameIF game, PylosGameState prevstate, PylosPlayerColor prevcolor){
+    Actioncacheless(Type type, PylosSphere sphere, PylosLocation prev, PylosLocation next, PylosGameIF game, PylosGameState prevstate, PylosPlayerColor prevcolor){
         this.type = type;
         this.sphere = sphere;
-        this.board = board;
         this.prevlocation = prev;
         this.nextlocation = next;
         this.game = game;
