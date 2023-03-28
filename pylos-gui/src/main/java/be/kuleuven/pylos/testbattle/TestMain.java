@@ -4,7 +4,7 @@ import be.kuleuven.pylos.battle.Battle;
 import be.kuleuven.pylos.player.PylosPlayer;
 import be.kuleuven.pylos.player.codes.PylosPlayerBestFit;
 import be.kuleuven.pylos.player.codes.PylosPlayerMiniMax;
-import be.kuleuven.pylos.player.student.StudentPlayerBestFit;
+import be.kuleuven.pylos.player.student.StudentPlayerBestFitWithCache;
 
 /**
  * Created by Jan on 20/03/2015.
@@ -21,7 +21,7 @@ public class TestMain {
 		PylosPlayer[] players = new PylosPlayer[]{bf, mm2, mm5, mm8};
 
 		for(PylosPlayer codes : players){
-			PylosPlayer student = new StudentPlayerBestFit();
+			PylosPlayer student = new StudentPlayerBestFitWithCache();
 			int wins = (int)(Battle.play(student, codes, 100, false)[0] * 100);
 			System.out.println(wins);
 		}

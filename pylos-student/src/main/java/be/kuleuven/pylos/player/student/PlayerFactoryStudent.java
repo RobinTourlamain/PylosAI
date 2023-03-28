@@ -34,7 +34,7 @@ public class PlayerFactoryStudent extends PylosPlayerFactory {
 		add(new PylosPlayerType("Student - Best Fit") {
 			@Override
 			public PylosPlayer create() {
-				return new StudentPlayerBestFit();
+				return new StudentPlayerBestFitWithCache();
 			}
 		});
 
@@ -48,7 +48,7 @@ public class PlayerFactoryStudent extends PylosPlayerFactory {
 		add(new PylosPlayerType("Student - Cacheless") {
 			@Override
 			public PylosPlayer create() {
-				return new StudentPlayerBestFitWithoutCache();
+				return new StudentPlayerBestFit();
 			}
 		});
 	}

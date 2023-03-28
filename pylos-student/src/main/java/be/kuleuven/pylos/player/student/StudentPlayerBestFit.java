@@ -2,29 +2,34 @@ package be.kuleuven.pylos.player.student;
 
 import be.kuleuven.pylos.game.*;
 import be.kuleuven.pylos.player.PylosPlayer;
+
 import java.util.*;
+import static be.kuleuven.pylos.player.student.StudentPlayerBestFit.simulatorcacheless;
 
-import static be.kuleuven.pylos.player.student.StudentPlayerBestFit.simulator;
-
-//player die boom opslaat en hergebruikt
+//player zonder boom op te slaan
 public class StudentPlayerBestFit extends PylosPlayer{
-    public static PylosGameSimulator simulator;
-    public Node root = null;
-    public Map<Long, Node> nextstates;
-    final long MAX_TIME_PER_MOVE = 50;
+    public static PylosGameSimulator simulatorcacheless;
+    public Random randomgenerator = new Random();
+    final long MAX_TIME_PER_MOVE = 40;
     public boolean isfirstmove = true;
+    public double exparam = 1.41;
+
+    public StudentPlayerBestFit(){}
+    public StudentPlayerBestFit(double explorationparameter){
+        exparam = explorationparameter;
+    }
 
     @Override
     public void doMove(PylosGameIF game, PylosBoard board) {
         init(game.getState(), board);
-        Action next = null;
+        Actioncacheless next = null;
 
         //eerste move ergens in midden
         if(isfirstmove){ //board.getNumberOfSpheresOnBoard() <= 3 && simulator.getState() == PylosGameState.MOVE
             for(int x = 1; x<=2; x++){
                 for(int y = 1; y<=2; y++){
                     if(board.getBoardLocation(x, y,0).isUsable()){
-                        next = new Action(Type.ADD, board.getReserve(this), null, board.getBoardLocation(x, y,0), game, PylosGameState.MOVE, this.PLAYER_COLOR);
+                        next = new Actioncacheless(Type.ADD, board.getReserve(this), null, board.getBoardLocation(x, y,0), game, PylosGameState.MOVE, this.PLAYER_COLOR);
                     }
                 }
             }
@@ -40,7 +45,7 @@ public class StudentPlayerBestFit extends PylosPlayer{
     public void doRemove(PylosGameIF game, PylosBoard board) {
         init(game.getState(), board);
 
-        Action next = monteCarlo(game, board);
+        Actioncacheless next = monteCarlo(game, board);
         next.execute();
     }
 
@@ -48,43 +53,44 @@ public class StudentPlayerBestFit extends PylosPlayer{
     public void doRemoveOrPass(PylosGameIF game, PylosBoard board) {
         init(game.getState(), board);
 
-        Action next = monteCarlo(game, board);
+        Actioncacheless next = monteCarlo(game, board);
         next.execute();
     }
 
     public void init(PylosGameState state, PylosBoard board){
-        simulator  = new PylosGameSimulator(state, this.PLAYER_COLOR, board);
+        simulatorcacheless  = new PylosGameSimulator(state, this.PLAYER_COLOR, board);
     }
 
-    public Action monteCarlo(PylosGameIF game, PylosBoard board){
-        if(this.root == null || !canReuse(game, board)) {
-            this.root = new Node();
-            List<Node> children = new ArrayList<>();
-            for (Action action : generateAllActions(game, board, this)) {
-                Node newnode = new Node(new State(), root, action);
-                children.add(newnode);
-            }
-            root.children = children;
+    public Actioncacheless monteCarlo(PylosGameIF game, PylosBoard board){
+        //root van boom instellen op huidige staat bord
+        Nodecacheless root = new Nodecacheless();
+        List<Nodecacheless> children = new ArrayList<>();
+        for(Actioncacheless action : generateAllActions(game, board, this)){
+            Nodecacheless newnode = new Nodecacheless(new State(), root, action);
+            children.add(newnode);
         }
+        root.children = children;
 
-        int iterations = 0;
         long endtime = MAX_TIME_PER_MOVE + System.currentTimeMillis();
-
         while(System.currentTimeMillis() < endtime){
-            Node promising = selectPromising(root);
+            //selecteer beste node in huidige tree
+            Nodecacheless promising = selectPromising(root);
 
-            if(simulator.getState() != PylosGameState.COMPLETED){
+            if(simulatorcacheless.getState() != PylosGameState.COMPLETED){
+                //genereer kinderen van de promising node
                 expandNode(promising, game, board);
             }
 
-            Node toexplore = promising;
+            Nodecacheless toexplore = promising;
             if(!promising.children.isEmpty()){
+                //selecteer random kind van promising node
                 toexplore = promising.getRandomChild();
                 toexplore.transition.simulate();
             }
 
-            PylosPlayerColor endresult = randomPlay(game, board, 0);
-
+            //speel vanuit de huidige node random tot een eindresultaat is bereikt
+            PylosPlayerColor endresult = randomPlay(game, board);
+            //propageer resultaat terug door alle nodes tot en met root
             if(endresult == null){
                 backPropagationDraw(toexplore);
             }else if(endresult == this.PLAYER_COLOR){
@@ -92,138 +98,16 @@ public class StudentPlayerBestFit extends PylosPlayer{
             }else{
                 backPropagationLoss(toexplore);
             }
-
-            //backPropagation(toexplore, endresult);
-            iterations++;
+//            backPropagation(toexplore, endresult);
         }
 
-//        System.out.println("#iterations: " + iterations);
-        Node winner = root.getBestChild();
-        this.root = winner;
-
-        winner.transition.simulate();
-        saveNextPossibleStates(game, board);
-        winner.transition.undo();
+        //geef beste kind van root terug als move om te maken
+        Nodecacheless winner = root.getBestChild();
         return winner.transition;
     }
 
-    public boolean canReuse(PylosGameIF game, PylosBoard board){
-        if(this.nextstates.isEmpty()) return false;
-        long currentstate = board.toLong();
-        for(Map.Entry<Long, Node> entry: nextstates.entrySet()){
-            if(currentstate == entry.getKey() && entry.getValue().parent == this.root){
-                this.root.children = null;
-                this.root = entry.getValue();
-                this.root.transition = null;
-                this.root.parent = null;
-                return true;
-            }
-        }
-        return false;
-    }
-
-    public void saveNextPossibleStates(PylosGameIF game, PylosBoard board){
-        nextstates = new HashMap<>();
-        for(Node node: this.root.children){
-            node.transition.simulate();
-            if(simulator.getColor() == this.PLAYER_COLOR){
-                nextstates.put(board.toLong(), node);
-            }
-            node.transition.undo();
-        }
-    }
-
-    public Node selectPromising(Node root){
-        Node node = root;
-        while(!node.children.isEmpty()){
-            node = findBestNode(node);
-            node.transition.simulate();
-        }
-        return node;
-    }
-
-    public Node findBestNode(Node node){
-        int parentvisits = node.state.visitcount;
-        return Collections.max(
-          node.children,
-          Comparator.comparing(
-                  c -> uctValue(parentvisits, c.state.winrate, c.state.visitcount)
-          )
-        );
-    }
-
-    public double uctValue(int parentvisits, double winrate, int nodevisits){
-        if(nodevisits == 0) return Integer.MAX_VALUE;
-        return ((double) winrate / (double) nodevisits) + 1.41 * Math.sqrt(Math.log(parentvisits) / (double) nodevisits);
-    }
-
-    public void expandNode(Node node, PylosGameIF game, PylosBoard board){
-        List<Action> actions;
-        if(simulator.getColor() == this.PLAYER_COLOR){
-            actions = generateAllActions(game, board, this);
-        }else{
-            actions = generateAllActions(game, board, this.OTHER);
-        }
-        List<Node> children = new ArrayList<>();
-        for(Action action : actions){
-            Node newnode = new Node(new State(), node, action);
-            children.add(newnode);
-        }
-        node.children = children;
-    }
-
-    public PylosPlayerColor randomPlay(PylosGameIF game, PylosBoard board, int depth){
-//        //early prediction
-//        if(board.getReservesSize(this) - board.getReservesSize(this.OTHER) >= 5){
-//            return this.PLAYER_COLOR;
-//        }
-//        //early stopping
-//        if(depth > 40){
-//            return evaluate(game, board);
-//        }
-//        depth++;
-
-        PylosPlayer player;
-        if(simulator.getColor() == this.PLAYER_COLOR){
-            player = this;
-        }
-        else{
-            player = this.OTHER;
-        }
-
-        if(simulator.getState() != PylosGameState.COMPLETED && simulator.getState() != PylosGameState.DRAW) {
-            List<Action> actions = generateAllActions(game, board, player);
-            Random rand = new Random();
-            Action next = actions.get(rand.nextInt(actions.size()));
-            next.simulate();
-            PylosPlayerColor result =  randomPlay(game, board, depth);
-            next.undo();
-            return result;
-        }else if(simulator.getState() == PylosGameState.COMPLETED){
-            return simulator.getWinner();
-        }else{
-            return null;
-        }
-    }
-
-    public void backPropagation(Node node, PylosPlayerColor result){
-        Node current = node;
-        while(current.transition != null){
-            current.state.visitcount++;
-            if(result == this.PLAYER_COLOR && current.transition.prevcolor == this.PLAYER_COLOR){
-                current.state.winrate += 1; //10
-            }else if(result == this.OTHER.PLAYER_COLOR && current.transition.prevcolor == this.OTHER.PLAYER_COLOR){
-                current.state.winrate += 1;
-            }
-            current.transition.undo();
-            current = current.parent;
-        }
-        current.state.visitcount++;
-        if(result == this.PLAYER_COLOR) current.state.winrate += 1; //10
-    }
-
-    private void backPropagationLoss(Node node){
-        Node current = node;
+    private void backPropagationLoss(Nodecacheless node){
+        Nodecacheless current = node;
         while(current.transition != null){
             current.state.visitcount++;
             if(current.transition.prevcolor == this.OTHER.PLAYER_COLOR){
@@ -235,8 +119,8 @@ public class StudentPlayerBestFit extends PylosPlayer{
         current.state.visitcount++;
     }
 
-    private void backPropagationWin(Node node){
-        Node current = node;
+    private void backPropagationWin(Nodecacheless node){
+        Nodecacheless current = node;
         while(current.transition != null){
             current.state.visitcount++;
             if(current.transition.prevcolor == this.PLAYER_COLOR){
@@ -249,8 +133,8 @@ public class StudentPlayerBestFit extends PylosPlayer{
         current.state.winrate += 1;
     }
 
-    private void backPropagationDraw(Node node){
-        Node current = node;
+    private void backPropagationDraw(Nodecacheless node){
+        Nodecacheless current = node;
         while(current.transition != null){
             current.state.visitcount++;
             current.transition.undo();
@@ -259,19 +143,90 @@ public class StudentPlayerBestFit extends PylosPlayer{
         current.state.visitcount++;
     }
 
-    public List<Action> generateAllActions(PylosGameIF game, PylosBoard board, PylosPlayer player){
+    public Nodecacheless selectPromising(Nodecacheless root){
+        Nodecacheless node = root;
+        while(!node.children.isEmpty()){
+            node = findBestNode(node);
+            node.transition.simulate();
+        }
+        return node;
+    }
+
+    public Nodecacheless findBestNode(Nodecacheless node){
+        int parentvisits = node.state.visitcount;
+        return Collections.max(
+                node.children,
+                Comparator.comparing(
+                        c -> uctValue(parentvisits, c.state.winrate, c.state.visitcount)
+                )
+        );
+    }
+
+    public double uctValue(int parentvisits, double winrate, int nodevisits){
+        if(nodevisits == 0) return Integer.MAX_VALUE;
+        return ((double) winrate / (double) nodevisits) + exparam * Math.sqrt(Math.log(parentvisits) / (double) nodevisits);
+    }
+
+    public void expandNode(Nodecacheless node, PylosGameIF game, PylosBoard board){
+        List<Actioncacheless> actions;
+        if(simulatorcacheless.getColor() == this.PLAYER_COLOR){
+            actions = generateAllActions(game, board, this);
+        }else{
+            actions = generateAllActions(game, board, this.OTHER);
+        }
+        List<Nodecacheless> children = new ArrayList<>();
+        for(Actioncacheless action : actions){
+            Nodecacheless newnode = new Nodecacheless(new State(), node, action);
+            children.add(newnode);
+        }
+        node.children = children;
+    }
+
+    public PylosPlayerColor randomPlay(PylosGameIF game, PylosBoard board){
+//        //early predicton
+//        if(board.getReservesSize(this) - board.getReservesSize(this.OTHER) >= 5){
+//            return this.PLAYER_COLOR;
+//        }
+//        //early stopping
+//        if(depth > 40){
+//            return evaluate(game, board);
+//        }
+        if(simulatorcacheless.getState() == PylosGameState.COMPLETED) return simulatorcacheless.getWinner();
+
+        PylosPlayer player;
+        if(simulatorcacheless.getColor() == this.PLAYER_COLOR){
+            player = this;
+        }
+        else{
+            player = this.OTHER;
+        }
+
+        if(simulatorcacheless.getState() != PylosGameState.DRAW) {
+            List<Actioncacheless> actions = generateAllActions(game, board, player);
+            Actioncacheless next = actions.get(randomgenerator.nextInt(actions.size()));
+            next.simulate();
+            PylosPlayerColor result =  randomPlay(game, board);
+            next.undo();
+            return result;
+        }else{
+            return null;
+        }
+    }
+
+    public List<Actioncacheless> generateAllActions(PylosGameIF game, PylosBoard board, PylosPlayer player){
         PylosSphere[] mySpheres = board.getSpheres(player);
         PylosLocation[] locations = board.getLocations();
-        List<Action> actions = new ArrayList<>();
+        List<Actioncacheless> actions = new ArrayList<>();
 
-        switch(simulator.getState()){
+        //bepaal welke acties van toepassing zijn in de simulatie
+        switch(simulatorcacheless.getState()){
             case MOVE:
                 //alle acties met upgraden
                 for(PylosSphere sphere : mySpheres){
                     if(!sphere.isReserve() && sphere.canMove()){
                         for(PylosLocation location : locations){
                             if(sphere.canMoveTo(location)){
-                                actions.add(new Action(Type.UPGRADE, sphere, sphere.getLocation(), location, game, PylosGameState.MOVE, player.PLAYER_COLOR));
+                                actions.add(new Actioncacheless(Type.UPGRADE, sphere, sphere.getLocation(), location, game, PylosGameState.MOVE, player.PLAYER_COLOR));
                             }
                         }
                     }
@@ -281,50 +236,50 @@ public class StudentPlayerBestFit extends PylosPlayer{
                 PylosSphere myReserveSphere = board.getReserve(player);
                 for(PylosLocation location : locations){
                     if(myReserveSphere.canMoveTo(location)){
-                        actions.add(new Action(Type.ADD, myReserveSphere, null, location, game, PylosGameState.MOVE, player.PLAYER_COLOR));
+                        actions.add(new Actioncacheless(Type.ADD, myReserveSphere, null, location, game, PylosGameState.MOVE, player.PLAYER_COLOR));
                     }
                 }
                 break;
             case REMOVE_FIRST:
                 for(PylosSphere sphere: board.getSpheres(player)){
                     if(sphere.canRemove()){
-                        actions.add(new Action(Type.REMOVE_FIRST, sphere, sphere.getLocation(), null, game, PylosGameState.REMOVE_FIRST, player.PLAYER_COLOR));
+                        actions.add(new Actioncacheless(Type.REMOVE_FIRST, sphere, sphere.getLocation(), null, game, PylosGameState.REMOVE_FIRST, player.PLAYER_COLOR));
                     }
                 }
                 break;
             case REMOVE_SECOND:
                 for(PylosSphere sphere: board.getSpheres(player)){
                     if(sphere.canRemove()){
-                        actions.add(new Action(Type.REMOVE_SECOND, sphere, sphere.getLocation(), null, game, PylosGameState.REMOVE_SECOND, player.PLAYER_COLOR));
+                        actions.add(new Actioncacheless(Type.REMOVE_SECOND, sphere, sphere.getLocation(), null, game, PylosGameState.REMOVE_SECOND, player.PLAYER_COLOR));
                     }
                 }
-                actions.add(new Action(Type.PASS, null, null, null, game, PylosGameState.REMOVE_SECOND, player.PLAYER_COLOR));
+                actions.add(new Actioncacheless(Type.PASS, null, null, null, game, PylosGameState.REMOVE_SECOND, player.PLAYER_COLOR));
                 break;
         }
+
         return actions;
     }
 }
 
-
-class Node{
+class Nodecacheless{
     State state = new State();
-    Node parent = null;
-    List<Node> children = new ArrayList<>();
-    Action transition;
+    Nodecacheless parent = null;
+    List<Nodecacheless> children = new ArrayList<>();
+    Actioncacheless transition;
 
-    public Node(){}
-    public Node(State state, Node parent, Action transition){
+    public Nodecacheless(){}
+    public Nodecacheless(State state, Nodecacheless parent, Actioncacheless transition){
         this.state = state;
         this.parent = parent;
         this.transition = transition;
     }
 
-    public Node getRandomChild(){
+    public Nodecacheless getRandomChild(){
         Random rand = new Random();
         return children.get(rand.nextInt(children.size()));
     }
 
-    public Node getBestChild(){
+    public Nodecacheless getBestChild(){
         return Collections.max(
                 children,
                 Comparator.comparing(c -> c.state.winrate)
@@ -337,7 +292,7 @@ class State{
     double winrate = 0;
 }
 
-class Action{
+class Actioncacheless{
     public Type type;
     public PylosSphere sphere;
     public PylosLocation prevlocation;
@@ -346,7 +301,7 @@ class Action{
     public PylosGameState prevState;
     public PylosPlayerColor prevcolor;
 
-    Action(Type type, PylosSphere sphere, PylosLocation prev, PylosLocation next, PylosGameIF game, PylosGameState prevstate, PylosPlayerColor prevcolor){
+    Actioncacheless(Type type, PylosSphere sphere, PylosLocation prev, PylosLocation next, PylosGameIF game, PylosGameState prevstate, PylosPlayerColor prevcolor){
         this.type = type;
         this.sphere = sphere;
         this.prevlocation = prev;
@@ -376,14 +331,14 @@ class Action{
         switch(type){
             case ADD:
             case UPGRADE:
-                simulator.moveSphere(sphere,nextlocation);
+                simulatorcacheless.moveSphere(sphere,nextlocation);
                 break;
             case REMOVE_FIRST:
             case REMOVE_SECOND:
-                simulator.removeSphere(sphere);
+                simulatorcacheless.removeSphere(sphere);
                 break;
             case PASS:
-                simulator.pass();
+                simulatorcacheless.pass();
                 break;
         }
     }
@@ -391,29 +346,23 @@ class Action{
     void undo(){
         switch(type){
             case ADD:
-                simulator.undoAddSphere(sphere,prevState,prevcolor);
-                assert simulator.getState() == prevState && simulator.getColor() == prevcolor;
+                simulatorcacheless.undoAddSphere(sphere,prevState,prevcolor);
                 break;
             case REMOVE_FIRST:
-                simulator.undoRemoveFirstSphere(sphere,prevlocation,prevState,prevcolor);
-                assert simulator.getState() == prevState && simulator.getColor() == prevcolor;
+                simulatorcacheless.undoRemoveFirstSphere(sphere,prevlocation,prevState,prevcolor);
                 break;
             case REMOVE_SECOND:
-                simulator.undoRemoveSecondSphere(sphere,prevlocation,prevState,prevcolor);
-                assert simulator.getState() == prevState && simulator.getColor() == prevcolor;
+                simulatorcacheless.undoRemoveSecondSphere(sphere,prevlocation,prevState,prevcolor);
                 break;
             case UPGRADE:
-                simulator.undoMoveSphere(sphere, prevlocation,prevState,prevcolor);
-                assert simulator.getState() == prevState && simulator.getColor() == prevcolor;
+                simulatorcacheless.undoMoveSphere(sphere, prevlocation,prevState,prevcolor);
                 break;
             case PASS:
-                simulator.undoPass(prevState,prevcolor);
-                assert simulator.getState() == prevState && simulator.getColor() == prevcolor;
+                simulatorcacheless.undoPass(prevState,prevcolor);
                 break;
         }
     }
 }
-
 enum Type{
     ADD,
     UPGRADE,
@@ -421,3 +370,4 @@ enum Type{
     REMOVE_SECOND,
     PASS,
 }
+
